@@ -17,64 +17,95 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Show repo root
+      - name: Display repo root
         run: |
-          echo "Repo root listing:"
+          echo "=== Repo root contents ==="
           ls -la
 
-      - name: Check archive exists and extract Seraph project
+      - name: Extract and verify archive
         run: |
           if [ ! -f seraphhack-1.2.0.zip ]; then
-            echo "ERROR: seraphhack-1.2.0.zip not found in repository root"
-            echo "Files in repo root:"
+            echo "❌ ERROR: seraphhack-1.2.0.zip not found"
             ls -la
             exit 1
           fi
+          echo "✅ Archive found, extracting..."
           rm -rf project
           mkdir project
           unzip -q seraphhack-1.2.0.zip -d project
+          echo "✅ Extraction complete"
 
-      - name: Show project files
+      - name: List extracted project structure
         run: |
-          find project -maxdepth 6 -type f | sort
+          echo "=== Project structure ==="
+          find project -maxdepth 3 -type f | head -30
+          find project -maxdepth 3 -type d
 
-      - name: Detect Gradle project directory
+      - name: Locate Gradle project
         run: |
           proj=$(find project -maxdepth 6 -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec dirname {} \; | head -n1 || true)
           if [ -z "$proj" ]; then
-            echo "ERROR: No Gradle project (build.gradle or build.gradle.kts) found under project/"
-            echo "Directories under project/:"
-            find project -maxdepth 6 -type d | sed -n '1,200p'
+            echo "❌ ERROR: No build.gradle found in project/"
+            find project -maxdepth 6 -type d
             exit 1
           fi
-          echo "Found Gradle project at: $proj"
+          echo "✅ Gradle project found at: $proj"
           echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
+          echo "PROJECT_DIR=$proj"
 
-      - name: Setup Gradle 8.8
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.8'
 
-      - name: Build Minecraft mod
+      - name: Create Gradle wrapper
         run: |
-          echo "Building in: $PROJECT_DIR"
-          if [ -x "$PROJECT_DIR/gradlew" ]; then
-            cd "$PROJECT_DIR"
-            ./gradlew clean build --no-daemon
+          cd "$PROJECT_DIR"
+          echo "=== Creating Gradle wrapper ==="
+          gradle wrapper --gradle-version 8.8 --distribution-type all
+          echo "✅ Gradle wrapper created"
+          ls -la | grep gradle
+
+      - name: Verify gradlew
+        run: |
+          cd "$PROJECT_DIR"
+          if [ -f gradlew ]; then
+            echo "✅ gradlew exists"
+            chmod +x gradlew
+            ./gradlew --version
           else
-            cd "$PROJECT_DIR"
-            gradle clean build --no-daemon
+            echo "❌ gradlew not found"
+            exit 1
           fi
 
-      - name: Show build output
+      - name: Build Minecraft mod
         run: |
-          echo "Looking for build/libs under project/"
-          find project -type d -name libs -prune -o -path "*/build/libs" -print
-          find project -path "*/build/libs" -maxdepth 1 -type f -print || true
+          cd "$PROJECT_DIR"
+          echo "=== Starting build ==="
+          ./gradlew clean build --no-daemon --info
+          echo "✅ Build completed"
 
-      - name: Upload mod JAR
+      - name: List build artifacts
+        run: |
+          echo "=== Build artifacts ==="
+          find project -path "*/build/libs" -type d
+          find project -path "*/build/libs/*.jar" -type f || echo "No JAR files found yet"
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SeraphHack-1.2.0
           path: project/**/build/libs/*.jar
           if-no-files-found: error
+
+      - name: Build summary
+        if: success()
+        run: echo "✅ Build succeeded and artifacts uploaded"
+
+      - name: Build failed
+        if: failure()
+        run: |
+          echo "❌ Build failed"
+          echo "=== Checking logs ==="
+          find project -path "*/build/reports" -type d
+          exit 1
