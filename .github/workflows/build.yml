@@ -17,38 +17,64 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Extract Seraph project
+      - name: Show repo root
         run: |
+          echo "Repo root listing:"
+          ls -la
+
+      - name: Check archive exists and extract Seraph project
+        run: |
+          if [ ! -f seraphhack-1.2.0.zip ]; then
+            echo "ERROR: seraphhack-1.2.0.zip not found in repository root"
+            echo "Files in repo root:"
+            ls -la
+            exit 1
+          fi
           rm -rf project
           mkdir project
           unzip -q seraphhack-1.2.0.zip -d project
 
       - name: Show project files
         run: |
-          find project -maxdepth 5 -type f | sort
+          find project -maxdepth 6 -type f | sort
+
+      - name: Detect Gradle project directory
+        run: |
+          proj=$(find project -maxdepth 6 -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec dirname {} \; | head -n1 || true)
+          if [ -z "$proj" ]; then
+            echo "ERROR: No Gradle project (build.gradle or build.gradle.kts) found under project/"
+            echo "Directories under project/:"
+            find project -maxdepth 6 -type d | sed -n '1,200p'
+            exit 1
+          fi
+          echo "Found Gradle project at: $proj"
+          echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
 
       - name: Setup Gradle 8.8
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.8'
 
-      - name: Find Gradle project
-        run: |
-          echo "Searching for build.gradle..."
-          find project -name build.gradle -o -name build.gradle.kts
-
       - name: Build Minecraft mod
-        working-directory: project/examplemod
         run: |
-          gradle clean build --no-daemon
+          echo "Building in: $PROJECT_DIR"
+          if [ -x "$PROJECT_DIR/gradlew" ]; then
+            cd "$PROJECT_DIR"
+            ./gradlew clean build --no-daemon
+          else
+            cd "$PROJECT_DIR"
+            gradle clean build --no-daemon
+          fi
 
       - name: Show build output
         run: |
-          find project/examplemod/build/libs -maxdepth 1 -type f -print
+          echo "Looking for build/libs under project/"
+          find project -type d -name libs -prune -o -path "*/build/libs" -print
+          find project -path "*/build/libs" -maxdepth 1 -type f -print || true
 
       - name: Upload mod JAR
         uses: actions/upload-artifact@v4
         with:
           name: SeraphHack-1.2.0
-          path: project/examplemod/build/libs/*.jar
+          path: project/**/build/libs/*.jar
           if-no-files-found: error
