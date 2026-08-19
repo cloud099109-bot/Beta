@@ -62,30 +62,23 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Remove incomplete Gradle wrapper
+      - name: Check existing Gradle wrapper
         run: |
           cd "$PROJECT_DIR"
-          echo "=== Removing incomplete wrapper ==="
-          rm -rf gradle/wrapper/gradle-wrapper.jar gradlew gradlew.bat 2>/dev/null || true
-          echo "✅ Old wrapper removed"
-
-      - name: Generate complete Gradle wrapper
-        run: |
-          cd "$PROJECT_DIR"
-          echo "=== Generating new wrapper with Gradle 8.8 ==="
-          gradle wrapper --gradle-version 8.8
-          echo "✅ Complete wrapper generated"
-          echo ""
-          echo "=== Verifying wrapper files ==="
+          echo "=== Checking existing gradle wrapper ==="
           ls -lah gradle/wrapper/
-          ls -lah gradlew*
+          ls -lah gradlew* || echo "No gradlew found"
 
-      - name: Set executable permissions
+      - name: Set executable permissions on gradlew
         run: |
           cd "$PROJECT_DIR"
-          chmod +x gradlew
-          [ -f gradlew.bat ] && chmod +x gradlew.bat || true
-          echo "✅ Permissions set"
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            [ -f gradlew.bat ] && chmod +x gradlew.bat || true
+            echo "✅ Permissions set"
+          else
+            echo "⚠️ gradlew not found, will create new wrapper"
+          fi
 
       - name: Verify Gradle wrapper
         run: |
@@ -94,17 +87,17 @@ jobs:
           ./gradlew --version
           echo "✅ Gradle wrapper verified"
 
-      - name: Build Minecraft mod
+      - name: Build Minecraft mod (with debug info)
         run: |
           cd "$PROJECT_DIR"
-          echo "=== Starting build ==="
-          ./gradlew clean build --no-daemon -x test
+          echo "=== Starting build with debug info ==="
+          ./gradlew clean build --no-daemon -x test --info
           echo "✅ Build completed"
 
       - name: List build artifacts
         run: |
           echo "=== Build artifacts ==="
-          find project -path "*/build/libs/*.jar" -type f 2>/dev/null && echo "✅ JAR files found" || echo "⚠️ No JAR files found yet"
+          find project -path "*/build/libs/*.jar" -type f 2>/dev/null && echo "✅ JAR files found" || echo "⚠️ No JAR files found"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -124,8 +117,6 @@ jobs:
         run: |
           echo "❌ Build failed"
           echo ""
-          echo "=== Checking build reports ==="
-          find project -path "*/build/reports" -type f 2>/dev/null | head -20 || echo "No reports found"
-          echo ""
-          echo "=== Last 50 lines of build output ==="
-          find project -path "*/build/logs/build.log" -exec tail -50 {} \; 2>/dev/null || echo "No build.log found"
+          echo "=== Checking build logs ==="
+          find project -path "*/build/logs" -type d 2>/dev/null
+          find project -path "*/build/reports" -type f 2>/dev/null | head -10 || echo "No reports found"
