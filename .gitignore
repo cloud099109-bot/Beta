@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+*.properties
+!gradle/wrapper/gradle-wrapper.properties
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+project/
+*.log
+*.out
+
+# But keep Gradle wrapper files
+!gradle/
+!gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
+!gradlew
+!gradlew.bat
