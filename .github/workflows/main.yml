@@ -11,16 +11,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 17 (for Fabric Loom compatibility)
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
+          cache: gradle
 
       - name: Display repo root
         run: |
           echo "=== Repo root contents ==="
           ls -la
+          echo ""
+          echo "=== Java version ==="
+          java -version
 
       - name: Extract and verify archive
         run: |
@@ -51,13 +55,6 @@ jobs:
           fi
           echo "✅ Gradle project found at: $proj"
           echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
-
-      - name: Setup Java for Gradle
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
 
       - name: Remove incomplete Gradle wrapper
         run: |
@@ -124,5 +121,5 @@ jobs:
           echo "=== Checking build reports ==="
           find project -path "*/build/reports" -type f 2>/dev/null | head -20 || echo "No reports found"
           echo ""
-          echo "=== Last 50 lines of build.log ==="
+          echo "=== Last 50 lines of build output ==="
           find project -path "*/build/logs/build.log" -exec tail -50 {} \; 2>/dev/null || echo "No build.log found"
