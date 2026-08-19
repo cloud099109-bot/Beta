@@ -16,7 +16,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Display repo root
         run: |
@@ -55,6 +54,13 @@ jobs:
           fi
           echo "✅ Gradle project found at: $proj"
           echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
+
+      - name: Setup Gradle cache
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
 
       - name: Remove incomplete Gradle wrapper
         run: |
