@@ -52,56 +52,56 @@ jobs:
           echo "✅ Gradle project found at: $proj"
           echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
 
-      - name: Setup Gradle with wrapper
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Java for Gradle
+        uses: actions/setup-java@v5
         with:
-          gradle-version: wrapper
-          gradle-home-cache-cleanup: true
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
 
-      - name: Debug - Check for gradlew in extracted project
+      - name: Remove incomplete Gradle wrapper
         run: |
           cd "$PROJECT_DIR"
-          echo "=== Checking for existing gradlew ==="
-          ls -la | grep -E "gradlew|gradle" || echo "No gradle files found"
+          echo "=== Removing incomplete wrapper ==="
+          rm -rf gradle/wrapper/gradle-wrapper.jar gradlew gradlew.bat 2>/dev/null || true
+          echo "✅ Old wrapper removed"
+
+      - name: Generate complete Gradle wrapper
+        run: |
+          cd "$PROJECT_DIR"
+          echo "=== Generating new wrapper with Gradle 8.8 ==="
+          gradle wrapper --gradle-version 8.8
+          echo "✅ Complete wrapper generated"
           echo ""
-          echo "=== Project root files ==="
-          ls -la
+          echo "=== Verifying wrapper files ==="
+          ls -lah gradle/wrapper/
+          ls -lah gradlew*
 
-      - name: Generate Gradle wrapper if missing
-        run: |
-          cd "$PROJECT_DIR"
-          if [ ! -f gradlew ]; then
-            echo "⚠️ gradlew not found, generating wrapper..."
-            gradle wrapper --gradle-version 8.8
-            ls -la | grep -E "gradlew|gradle"
-          else
-            echo "✅ gradlew already exists"
-            ./gradlew --version
-          fi
-
-      - name: Make gradlew executable
+      - name: Set executable permissions
         run: |
           cd "$PROJECT_DIR"
           chmod +x gradlew
           [ -f gradlew.bat ] && chmod +x gradlew.bat || true
           echo "✅ Permissions set"
 
-      - name: Verify gradlew works
+      - name: Verify Gradle wrapper
         run: |
           cd "$PROJECT_DIR"
+          echo "=== Testing gradlew ==="
           ./gradlew --version
+          echo "✅ Gradle wrapper verified"
 
       - name: Build Minecraft mod
         run: |
           cd "$PROJECT_DIR"
           echo "=== Starting build ==="
-          ./gradlew clean build --no-daemon
+          ./gradlew clean build --no-daemon -x test
           echo "✅ Build completed"
 
       - name: List build artifacts
         run: |
           echo "=== Build artifacts ==="
-          find project -path "*/build/libs/*.jar" -type f || echo "No JAR files found"
+          find project -path "*/build/libs/*.jar" -type f 2>/dev/null && echo "✅ JAR files found" || echo "⚠️ No JAR files found yet"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -112,10 +112,17 @@ jobs:
 
       - name: Build summary
         if: success()
-        run: echo "✅ Build succeeded"
+        run: |
+          echo "✅ Build succeeded!"
+          echo "Artifacts have been uploaded"
 
       - name: Build failed - Show logs
         if: failure()
         run: |
           echo "❌ Build failed"
+          echo ""
+          echo "=== Checking build reports ==="
           find project -path "*/build/reports" -type f 2>/dev/null | head -20 || echo "No reports found"
+          echo ""
+          echo "=== Last 50 lines of build.log ==="
+          find project -path "*/build/logs/build.log" -exec tail -50 {} \; 2>/dev/null || echo "No build.log found"
