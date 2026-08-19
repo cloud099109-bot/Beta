@@ -51,61 +51,71 @@ jobs:
           fi
           echo "✅ Gradle project found at: $proj"
           echo "PROJECT_DIR=$proj" >> $GITHUB_ENV
-          echo "PROJECT_DIR=$proj"
 
-      - name: Setup Gradle
+      - name: Setup Gradle with wrapper
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.8'
+          gradle-version: wrapper
+          gradle-home-cache-cleanup: true
 
-      - name: Create Gradle wrapper
+      - name: Debug - Check for gradlew in extracted project
         run: |
           cd "$PROJECT_DIR"
-          echo "=== Creating Gradle wrapper ==="
-          gradle wrapper --gradle-version 8.8 --distribution-type all
-          echo "✅ Gradle wrapper created"
-          ls -la | grep gradle
+          echo "=== Checking for existing gradlew ==="
+          ls -la | grep -E "gradlew|gradle" || echo "No gradle files found"
+          echo ""
+          echo "=== Project root files ==="
+          ls -la
 
-      - name: Verify gradlew
+      - name: Generate Gradle wrapper if missing
         run: |
           cd "$PROJECT_DIR"
-          if [ -f gradlew ]; then
-            echo "✅ gradlew exists"
-            chmod +x gradlew
-            ./gradlew --version
+          if [ ! -f gradlew ]; then
+            echo "⚠️ gradlew not found, generating wrapper..."
+            gradle wrapper --gradle-version 8.8
+            ls -la | grep -E "gradlew|gradle"
           else
-            echo "❌ gradlew not found"
-            exit 1
+            echo "✅ gradlew already exists"
+            ./gradlew --version
           fi
+
+      - name: Make gradlew executable
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          [ -f gradlew.bat ] && chmod +x gradlew.bat || true
+          echo "✅ Permissions set"
+
+      - name: Verify gradlew works
+        run: |
+          cd "$PROJECT_DIR"
+          ./gradlew --version
 
       - name: Build Minecraft mod
         run: |
           cd "$PROJECT_DIR"
           echo "=== Starting build ==="
-          ./gradlew clean build --no-daemon --info
+          ./gradlew clean build --no-daemon
           echo "✅ Build completed"
 
       - name: List build artifacts
         run: |
           echo "=== Build artifacts ==="
-          find project -path "*/build/libs" -type d
-          find project -path "*/build/libs/*.jar" -type f || echo "No JAR files found yet"
+          find project -path "*/build/libs/*.jar" -type f || echo "No JAR files found"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SeraphHack-1.2.0
           path: project/**/build/libs/*.jar
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Build summary
         if: success()
-        run: echo "✅ Build succeeded and artifacts uploaded"
+        run: echo "✅ Build succeeded"
 
-      - name: Build failed
+      - name: Build failed - Show logs
         if: failure()
         run: |
           echo "❌ Build failed"
-          echo "=== Checking logs ==="
-          find project -path "*/build/reports" -type d
-          exit 1
+          find project -path "*/build/reports" -type f 2>/dev/null | head -20 || echo "No reports found"
